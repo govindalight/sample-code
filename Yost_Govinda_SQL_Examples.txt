@@ -1,0 +1,232 @@
+*John Yost ;
+*johngyost@outlook.com ;
+
+*EXAMPLE SQL QUERIES in SAS environment;
+
+options nocenter replace;
+title 'PubH 6813 - SQL Data Exercises';
+
+libname Medicare 'C:\Users\Yost\OneDrive\Univ. of Min. MS\PubH6813_ElecHealthInfo\PubH6813 SQL Data and Template\System' ;
+
+*YostJohn
+ PubH 6813
+ HW 5 ;
+*Q1a. What is the prevalence of diabetic patients who have had a HbA1C test (CPT 83036)?The
+filtering for diabetes diagnoses should read: "ICD9CODE BETWEEN '25000' AND '25093'";
+
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #1a';
+
+SELECT
+	COUNT(distinct patid)/(SELECT COUNT(*) FROM medicare.benef) AS PREV_DIAB_PAT_W_HbA1c_TEST
+FROM medicare.proced
+WHERE hcpcs = '83036' AND 
+	  patid IN (SELECT patid FROM medicare.diagnose WHERE icd9code between '25000' AND '25093')
+;	
+QUIT ;
+
+*Q1b. What is the number of patients who have had at least 2 diabetes diagnoses in a professional
+setting or at least 1 in an inpatient setting? The filtering for diabetes diagnoses should read:
+"ICD9CODE BETWEEN '25000' AND '25093'";
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #1b';
+
+SELECT
+	COUNT(*) as NUM_BENEF_DIAB_2PROF_1INP
+FROM
+	(
+	SELECT
+		patid,
+		COUNT(*) as NUM_PROF_DIAG
+	FROM medicare.diagnose
+	WHERE icd9code between '25000' and '25093' AND
+		  transrc = 1
+	GROUP BY patid
+	) as a
+FULL OUTER JOIN
+	(
+	SELECT
+		patid,
+		COUNT(*) as NUM_INP_DIAG
+	FROM medicare.diagnose
+	WHERE icd9code between '25000' and '25093' AND
+		  transrc = 2
+	GROUP BY patid
+	) as b ON
+	a.patid = b.patid
+WHERE a.NUM_PROF_DIAG ge 2 OR
+	  b.NUM_INP_DIAG  ge 1
+;
+QUIT;
+
+*Q2a Create a table that has the columns patid and the number of and sum of expenses by patients
+for professional encounters (use the visits table) ;
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #2a';
+
+CREATE TABLE medicare.EXP_PROF AS
+SELECT
+	patid,
+	COUNT(amtpaid) AS UTIL_PROF,
+	SUM(amtpaid) AS COST_PROF
+FROM medicare.visits
+WHERE transrc = 1
+GROUP BY patid
+;
+QUIT ;
+
+*Q2b Create a table that has the columns patid and the number of and the sum of expenses by
+patients for inpatient encounters (use the visits table);
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #2b';
+
+CREATE TABLE medicare.EXP_IN AS
+SELECT
+	patid,
+	COUNT(amtpaid) AS UTIL_IN,
+	SUM(amtpaid) AS COST_IN
+FROM medicare.visits
+WHERE transrc = 2
+GROUP BY patid
+;
+QUIT ;
+
+*Q2c Create a table that has the columns patid and the number of and the sum of expenses by
+patients for outpatient encounters (use the visits table);
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #2c';
+
+CREATE TABLE medicare.EXP_OUT AS
+SELECT
+	patid,
+	COUNT(amtpaid) AS UTIL_OUT,
+	SUM(amtpaid) AS COST_OUT
+FROM medicare.visits
+WHERE transrc = 3
+GROUP BY patid
+ORDER BY cost_out desc
+;
+QUIT ;
+
+*Q2d Create a table to include all beneficiaries, age, and gender, utilization, and total expenses using
+a left join to the benef table and the coalesce function to get zeros for missing counts and expenses. ;
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #2d';
+
+CREATE TABLE medicare.expenses AS
+SELECT
+	a.patid,
+	age,
+	gender,
+	SUM((COALESCE(UTIL_PROF,0), (COALESCE(UTIL_IN, 0), (COALESCE(UTIL_OUT, 0)) AS UTIL,
+	COALESCE(SUM((COALESCE(COST_PROF, 0), (COALESCE(COST_IN, 0), COALESCE(COST_OUT, 0)) AS TOT_EXP format dollar10.2
+FROM medicare.benef as a
+LEFT OUTER JOIN medicare.EXP_PROF as b ON
+	a.patid = b.patid
+LEFT OUTER JOIN medicare.EXP_IN as c ON
+	a.patid = c.patid
+LEFT OUTER JOIN medicare.EXP_OUT as d ON
+	a.patid = d.patid
+;
+QUIT ;
+
+*Q3 What is the min, max, and average total expenses for all beneficiaries using the table created in
+2d?;
+
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #3';
+
+SELECT
+	MIN(TOT_EXP) AS MIN_EXP,
+	MAX(TOT_EXP) AS MAX_EXP format dollar10.2,
+	AVG(TOT_EXP) AS AVG_EXP format dollar10.2
+FROM medicare.expenses ;
+QUIT ;
+	
+/* 1b subquerey components tested 
+
+PROC SQL ;
+
+SELECT
+	patid,
+	COUNT(*) as NUM_PROF_DIAG
+FROM medicare.diagnose
+WHERE icd9code between '25000' and '25093' AND
+	  transrc = 1
+GROUP BY patid
+;
+QUIT ;
+PROC SQL ;
+
+SELECT
+	patid,
+	COUNT(*) as NUM_INP_DIAG
+FROM medicare.diagnose
+WHERE icd9code between '25000' and '25093' AND
+	  transrc = 2
+GROUP BY patid
+;
+QUIT ; */
+
+/*Code used to work through question 1b but ultimately incorrect
+
+PROC SQL ;
+TITLE2 'SQL Assignment #5';
+TITLE3 'Question #1b';
+
+SELECT
+	COUNT(distinct patid)
+FROM
+(
+SELECT
+	patid,
+	COUNT(*) AS COUNT
+FROM medicare.diagnose
+WHERE icd9code between '25000' and '25093' AND
+	  (transrc = 1 OR transrc = 2)
+)
+;
+QUIT ;
+
+PROC SQL outobs = 50 ;
+SELECT
+	patid,
+	icd9code,
+	transrc
+FROM medicare.diagnose
+WHERE icd9code between '25000' and '25093' AND
+	  (transrc = 1 OR transrc = 2) AND
+	  ;
+QUIT ;
+
+PROC SQL outobs = 100 ;
+SELECT
+	a.patid,
+	a.transrc AS PROF,
+	b.transrc AS INPATIENT
+FROM medicare.diagnose as a
+INNER JOIN medicare.diagnose as b ON
+	a.transrc = 1 AND
+	b.transrc = 2
+WHERE a.icd9code between '25000' and '25093'
+;
+QUIT ;
+
+PROC SQL ;
+SELECT
+	patid,
+	COUNT(*),
+	transrc
+FROM medicare.diagnose
+WHERE patid = 16
+GROUP BY transrc
+;
+QUIT ;
+*/

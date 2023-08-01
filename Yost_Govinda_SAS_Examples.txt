@@ -1,0 +1,142 @@
+*John Yost ;
+*johngyost@outlook.com ;
+
+*SAS EXAMPLES ;
+
+*Builing a model to compare treatments for HIV/AIDS treatment measured by CD4 count in the blood ;
+
+PROC IMPORT
+	DATAFILE = "C:\Users\Yost\OneDrive\Univ. of Min. MS\Spring 2018\PubH6451_BiostatsII\Homework\Homework5\first_hw5.csv"
+	DBMS = csv
+	OUT = HW5
+	REPLACE ;
+	GETNAMES = yes ;
+RUN ;
+PROC CONTENTS ;
+RUN ;
+PROC GLM data = HW5;
+	CLASS twoclass cd4blstrata UNIT ;
+	MODEL cd4change = twoclass cd4blstrata UNIT / solution ;
+	LSMEANS twoclass / pdiff stderr cl ;
+RUN ;
+
+*Q8 ;
+
+PROC GLM data = HW5 ;
+	CLASS twoclass UNIT ;
+	MODEL cd4change = twoclass UNIT cd4blavg / solution ;
+	LSMEANS twoclass / pdiff stderr cl ;
+RUN ;
+PROC MEANS data = HW5 ;
+	VAR cd4blavg ;
+RUN ;
+
+*Data Manipulation ;
+
+DATA diet ;
+	INFILE "C:\Users\John Yost\OneDrive\Documents\1 Grad School\Univ. of Min. MS\PubH 6420_Intro to SAS\Downloads\Data\tomhs.dat" ;
+	INPUT @001 ptid $10.
+		  @186 fatbl 4.1
+		  @213 sodbl 5. ;
+RUN ;
+
+ODS OUTPUT quantiles = quantout ;
+PROC UNIVARIATE data = diet ;
+	VAR fatbl sodbl ;
+	TITLE 'Summary Stats for Fatbl and Sodbl' ;
+RUN ;
+ODS OUTPUT CLOSE ;
+
+PROC CONTENTS data = quantout ;
+	TITLE 'Contents of Quantout' ;
+RUN ;
+
+PROC PRINT data = quantout ;
+	TITLE 'Quantout Table' ;
+RUN ;
+
+
+DATA fat sodi ;
+	SET quantout ;
+	if varname = 'fatbl' then output fat ; else
+	if varname = 'sodbl' then output sodi ;
+	TITLE 'Separating Quantile Data by Variable' ;
+RUN ;
+
+PROC DATASETS ;
+	MODIFY fat ;
+	RENAME estimate = fat ;
+	MODIFY sodi ;
+	RENAME estimate = sodi ;
+RUN ;
+
+DATA quantiles;
+	MERGE fat sodi ;
+	DROP varname ;
+RUN ;
+PROC PRINT data = quantiles NOOBS ;
+	TITLE 'Quantile Data for Fat and Sodium' ;
+RUN ;
+
+*More Data Manipulation ;
+
+DATA elect16 ;
+	INFILE "C:\Users\John Yost\OneDrive\Documents\1 Grad School\Univ. of Min. MS\PubH 6420_Intro to SAS\Downloads\Data\president_election_2016.csv" DLM = ',' DSD MISSOVER FIRSTOBS = 2 ;
+	INPUT state $
+		  county_id
+		  county_name :$17.
+		  candidate_id $
+		  candvotes
+		  totvotes ;
+RUN ;
+
+DATA trumpclinton ;
+	SET elect16 ;
+	WHERE candidate_id IN ('0301', '0401') ;
+RUN ;		
+
+DATA trump clinton ;
+	SET trumpclinton;
+	DROP state county_id ;
+	IF candidate_id = '0301' then output trump ;
+	IF candidate_id = '0401' then output clinton ;
+RUN ;
+PROC DATASETS ;
+	MODIFY trump ;
+	RENAME candvotes = Trump_Votes ;
+	MODIFY clinton ;
+	RENAME candvotes = Clinton_Votes ;
+RUN ;
+DATA TvC ;
+	RETAIN county_name totvotes Trump_Votes Clinton_Votes ;
+	MERGE trump clinton ;
+	DROP candidate_id ;
+RUN ;
+PROC PRINT data = TvC NOOBS;
+RUN ;
+
+DATA TvCm ;
+	SET TvC ;
+	trump_pct = ((Trump_Votes/totvotes)*100) ;
+	clinton_pct = ((Clinton_Votes/totvotes)*100) ;
+	if trump_pct > clinton_pct then winner = 'TRUMP' ; else
+	if trump_pct < clinton_pct then winner = 'CLINTON' ;
+RUN ;
+
+PROC FREQ data = TvCm ;
+	TABLES winner ;
+RUN ;
+*Q5a: Trump won 78 counties and Clinton won 9 counties. ;
+PROC SORT data = TvCm ;
+	BY trump_pct ;
+PROC PRINT data = TvCm ;
+RUN ;
+*Q5b: Trump did best in Morrison and Clinton did best in Ramsey ;
+
+DATA TvCm2 ;
+	SET TvCm ;
+	pctdiff = abs (trump_pct - clinton_pct) ;
+RUN ;
+PROC SORT data = TvCm2 ;
+	BY pctdiff ;
+RUN ;
