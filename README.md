@@ -1,2 +1,7 @@
-# Code to understand my data manipulation and statistical inference coding skills
-# I write code in SQL (mostly in SAS environment), SAS, STATA, and R
+Hi, I'm Govinda. This is my repository of sample code.
+
+| Rank | Languages |
+|-----:|-----------|
+|     1| Javascript|
+|     2| Python    |
+|     3| SQL       |
